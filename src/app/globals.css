@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-plus-jakarta: 'Plus Jakarta Sans', sans-serif;
+  --font-sora: 'Sora', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-plus-jakarta);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+
+/* Chat bubble animations */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.message-bubble { animation: slideIn 0.25s ease-out; }
+
+/* Typing indicator dots */
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0.65); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+.typing-dot:nth-child(1) { animation: bounce 1.2s ease-in-out infinite 0s; }
+.typing-dot:nth-child(2) { animation: bounce 1.2s ease-in-out infinite 0.2s; }
+.typing-dot:nth-child(3) { animation: bounce 1.2s ease-in-out infinite 0.4s; }
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Chat portal specific */
+.chat-container {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.messages-area {
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+/* Prose in chat */
+.chat-prose p { margin-bottom: 0.5rem; }
+.chat-prose p:last-child { margin-bottom: 0; }
+.chat-prose ul { list-style: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+.chat-prose li { margin-bottom: 0.25rem; }
+.chat-prose strong { font-weight: 600; }
