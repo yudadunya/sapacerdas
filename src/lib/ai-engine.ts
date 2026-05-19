@@ -1,149 +1,348 @@
+/**
+ * SapaCerdas AI Engine v3
+ * Model: claude-sonnet-4-6
+ * - Web search aktif otomatis (AI yang memutuskan kapan perlu search)
+ * - Knowledge base dibaca sebagai konteks terstruktur
+ * - System prompt minimal — persona saja, bukan instruksi panjang
+ * - Tidak ada keyword trigger
+ */
+
 import Anthropic from '@anthropic-ai/sdk'
-import { createServiceClient } from './supabase'
-import type { Persona, KnowledgeItem } from '@/types'
+import { createClient } from '@supabase/supabase-js'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+})
 
-function hashQuestion(text: string): string {
-  const normalized = text.toLowerCase().trim().replace(/\s+/g, ' ')
-  let hash = 0
-  for (let i = 0; i < normalized.length; i++) {
-    const char = normalized.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return Math.abs(hash).toString(36)
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-function buildKnowledgeContext(items: KnowledgeItem[]): string {
-  if (!items.length) return ''
-  return items.map(i => `### ${i.title}\n${i.content}`).join('\n\n')
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-function isSimpleGreeting(text: string): boolean {
-  const lower = text.toLowerCase().trim()
-  if (lower.length < 8) return true
-  const greetings = ['halo', 'hai', 'hi ', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam', 'permisi', 'hei ']
-  return greetings.some(g => lower.startsWith(g))
-}
-
-export interface ChatMessage {
+interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
-export interface AIResponse {
-  text: string
-  fromCache: boolean
-  tokensUsed: number
-  enrichedWith?: string
+interface Persona {
+  id: string
+  name: string
+  system_prompt: string
+  welcome_message: string
+  tone?: string
+  topics_allowed?: string[]
 }
+
+interface KnowledgeItem {
+  title: string
+  content: string
+  source_type: string
+  source_url?: string
+}
+
+interface AIResponse {
+  text: string
+  tokensUsed: number
+  usedWebSearch: boolean
+}
+
+// ─── Ambil knowledge base dari Supabase ──────────────────────────────────────
+
+async function getKnowledge(personaId: string): Promise<KnowledgeItem[]> {
+  const { data, error } = await supabase
+    .from('knowledge_items')
+    .select('title, content, source_type, source_url')
+    .eq('persona_id', personaId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (error || !data) return []
+  return data
+}
+
+// ─── Format knowledge sebagai konteks terstruktur ────────────────────────────
+
+function buildKnowledgeContext(items: KnowledgeItem[]): string {
+  if (items.length === 0) return ''
+
+  const sections = items.map((item, i) => {
+    const sourceNote = item.source_url ? ` (sumber: ${item.source_url})` : ''
+    return `[${i + 1}] ${item.title}${sourceNote}\n${item.content}`
+  })
+
+  return `\n\n---\nINFORMASI YANG KAMU KETAHUI:\n${sections.join('\n\n')}\n---`
+}
+
+// ─── Build system prompt yang benar-benar minimal ────────────────────────────
+
+function buildSystemPrompt(persona: Persona, knowledgeContext: string): string {
+  const baseName = persona.name || 'Asisten'
+
+  // System prompt seminimal mungkin — cukup identitas + instruksi kunci
+  const core = `Kamu adalah ${baseName}.
+
+Cara menjawab:
+- Bicara natural seperti orang nyata, bukan seperti chatbot atau CS
+- Jawab langsung ke inti, tanpa basa-basi pembuka seperti "Tentu saja!" atau "Baik, saya akan..."
+- Kalau ada informasi di knowledge base, gunakan itu sebagai referensi utama
+- Kalau perlu info terkini yang tidak ada di knowledge base, cari sendiri lewat web search
+- Jangan pernah menyebut bahwa kamu Claude, AI buatan Anthropic, atau AI apapun
+- Jangan bilang "Berdasarkan knowledge base saya..." — langsung jawab saja${knowledgeContext}`
+
+  return core
+}
+
+// ─── Fungsi utama: generate respons ──────────────────────────────────────────
 
 export async function generateResponse(
   persona: Persona,
-  messages: ChatMessage[],
-  knowledgeItems: KnowledgeItem[],
+  messages: Message[],
   sessionId: string
 ): Promise<AIResponse> {
-  const supabase = createServiceClient()
-  const lastMessage = messages[messages.length - 1]
-
-  // 1. Check cache
-  const questionHash = hashQuestion(lastMessage.content)
-  try {
-    const { data: cached } = await supabase
-      .from('response_cache')
-      .select('answer_text, hit_count')
-      .eq('persona_id', persona.id)
-      .eq('question_hash', questionHash)
-      .gt('expires_at', new Date().toISOString())
-      .single()
-    if (cached) {
-      await supabase.from('response_cache')
-        .update({ hit_count: cached.hit_count + 1 })
-        .eq('persona_id', persona.id)
-        .eq('question_hash', questionHash)
-      return { text: cached.answer_text, fromCache: true, tokensUsed: 0 }
-    }
-  } catch {}
-
-  // 2. Build system prompt — minimal, biarkan knowledge yang bicara
+  // 1. Ambil knowledge base
+  const knowledgeItems = await getKnowledge(persona.id)
   const knowledgeContext = buildKnowledgeContext(knowledgeItems)
-  
-  const toneMap: Record<string, string> = {
-    friendly: 'Bicara dengan hangat dan ramah seperti teman yang membantu.',
-    formal: 'Bicara dengan sopan dan profesional.',
-    casual: 'Bicara santai dan akrab.',
-  }
 
-  const systemPrompt = knowledgeContext
-    ? `Kamu adalah ${persona.name}${persona.tagline ? `, ${persona.tagline}` : ''}. ${toneMap[persona.tone] || toneMap.friendly}
+  // 2. Build system prompt
+  const systemPrompt = buildSystemPrompt(persona, knowledgeContext)
 
-SEMUA INFORMASI YANG KAMU TAHU:
-${knowledgeContext}
-
-Jawab HANYA berdasarkan informasi di atas. Jika tidak ada, cari dari web. Jangan pernah sebut bahwa kamu adalah Claude atau AI buatan Anthropic.`
-    : `Kamu adalah ${persona.name}${persona.tagline ? `, ${persona.tagline}` : ''}. ${toneMap[persona.tone] || toneMap.friendly}
-Jawab pertanyaan dengan mencari informasi terkini yang relevan. Jangan sebut bahwa kamu adalah Claude atau AI buatan Anthropic.`
-
-  const recentMessages = messages.slice(-8).map(m => ({
+  // 3. Format messages untuk API
+  const apiMessages = messages.map(m => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
   }))
 
+  // 4. Panggil API dengan web_search tool aktif
+  //    AI yang memutuskan sendiri kapan perlu search — tidak ada trigger manual
   let responseText = ''
   let tokensUsed = 0
-  let enrichedWith: string | undefined
+  let usedWebSearch = false
 
-  // 3. Semua pertanyaan non-salam pakai web search
-  if (!isSimpleGreeting(lastMessage.content)) {
-    try {
-      const response = await (anthropic.messages.create as any)({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1200,
+  try {
+    const response = await (anthropic.messages.create as any)({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: apiMessages,
+      tools: [
+        {
+          type: 'web_search_20250305',
+          name: 'web_search',
+        },
+      ],
+    })
+
+    // 5. Ambil teks dari response (bisa ada tool_use blocks juga)
+    for (const block of response.content) {
+      if (block.type === 'text') {
+        responseText += block.text
+      }
+      if (block.type === 'tool_use' && block.name === 'web_search') {
+        usedWebSearch = true
+      }
+    }
+
+    tokensUsed = response.usage?.output_tokens ?? 0
+
+    // Handle multi-turn jika ada tool_use (web search memerlukan follow-up)
+    if (response.stop_reason === 'tool_use') {
+      const toolResults = response.content
+        .filter((b: any) => b.type === 'tool_use')
+        .map((b: any) => ({
+          type: 'tool_result' as const,
+          tool_use_id: b.id,
+          content: b.input?.query
+            ? `Mencari: ${b.input.query}`
+            : 'Searching...',
+        }))
+
+      const followUp = await (anthropic.messages.create as any)({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
         system: systemPrompt,
-        messages: recentMessages,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [
+          ...apiMessages,
+          { role: 'assistant', content: response.content },
+          { role: 'user', content: toolResults },
+        ],
+        tools: [
+          {
+            type: 'web_search_20250305',
+            name: 'web_search',
+          },
+        ],
       })
-      const textBlocks = response.content.filter((b: any) => b.type === 'text')
-      responseText = textBlocks.map((b: any) => b.text).join('\n').trim()
-      tokensUsed = response.usage.input_tokens + response.usage.output_tokens
-      if (responseText) enrichedWith = 'web_search'
-      else throw new Error('empty')
-    } catch {
-      const response = await anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1200,
-        system: systemPrompt,
-        messages: recentMessages,
-      })
-      const textBlock = response.content.find(b => b.type === 'text')
-      responseText = textBlock && 'text' in textBlock ? textBlock.text : ''
-      tokensUsed = response.usage.input_tokens + response.usage.output_tokens
+
+      responseText = ''
+      for (const block of followUp.content) {
+        if (block.type === 'text') {
+          responseText += block.text
+        }
+      }
+
+      tokensUsed += followUp.usage?.output_tokens ?? 0
+    }
+  } catch (err) {
+    console.error('AI engine error:', err)
+    responseText =
+      'Maaf, ada gangguan sebentar. Coba tanyakan lagi ya.'
+  }
+
+  // 6. Log usage (fire and forget, jangan block response)
+  supabase
+    .from('usage_logs')
+    .insert({
+      tenant_id: persona.id, // akan diupdate di caller jika perlu
+      persona_id: persona.id,
+      event_type: usedWebSearch ? 'chat_with_search' : 'chat',
+      tokens_used: tokensUsed,
+    })
+    .then(() => {})
+    .catch(() => {})
+
+  return { text: responseText, tokensUsed, usedWebSearch }
+}
+
+// ─── Update knowledge dari URL (dipanggil dari /api/knowledge/enrich) ─────────
+
+export async function enrichKnowledgeFromUrl(
+  url: string,
+  personaId: string,
+  tenantId: string
+): Promise<{ title: string; content: string }> {
+  // Fetch konten URL
+  let rawContent = ''
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SapaCerdas/1.0)' },
+      signal: AbortSignal.timeout(10000),
+    })
+    const html = await res.text()
+    // Strip HTML tags secara sederhana
+    rawContent = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000) // batasi agar tidak terlalu panjang
+  } catch {
+    throw new Error('Gagal mengambil konten dari URL tersebut')
+  }
+
+  // Minta AI merangkum
+  const summary = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 800,
+    messages: [
+      {
+        role: 'user',
+        content: `Rangkum konten dari URL ini menjadi knowledge base yang informatif dan terstruktur. Tulis dalam Bahasa Indonesia. Fokus pada fakta dan informasi penting. Maksimal 500 kata.\n\nURL: ${url}\n\nKonten:\n${rawContent}`,
+      },
+    ],
+  })
+
+  const summaryText =
+    summary.content[0].type === 'text'
+      ? summary.content[0].text
+      : 'Tidak dapat merangkum konten.'
+
+  // Buat judul dari domain
+  const domain = new URL(url).hostname.replace('www.', '')
+  const title = `Konten dari ${domain}`
+
+  // Simpan ke knowledge_items
+  await supabase.from('knowledge_items').upsert(
+    {
+      persona_id: personaId,
+      tenant_id: tenantId,
+      title,
+      content: summaryText,
+      source_type: 'url',
+      source_url: url,
+      is_active: true,
+      last_synced_at: new Date().toISOString(),
+    },
+    { onConflict: 'persona_id,source_url' }
+  )
+
+  return { title, content: summaryText }
+}
+
+// ─── Update knowledge dari topik (web search → simpan ke DB) ─────────────────
+
+export async function enrichKnowledgeFromTopic(
+  topic: string,
+  personaId: string,
+  tenantId: string
+): Promise<{ title: string; content: string }> {
+  const response = await (anthropic.messages.create as any)({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 800,
+    messages: [
+      {
+        role: 'user',
+        content: `Cari dan rangkum informasi terkini tentang: "${topic}". Tulis dalam Bahasa Indonesia, terstruktur, maksimal 500 kata. Fokus pada fakta terbaru.`,
+      },
+    ],
+    tools: [
+      {
+        type: 'web_search_20250305',
+        name: 'web_search',
+      },
+    ],
+  })
+
+  let summaryText = ''
+
+  // Handle multi-turn jika ada tool_use
+  if (response.stop_reason === 'tool_use') {
+    const toolResults = response.content
+      .filter((b: any) => b.type === 'tool_use')
+      .map((b: any) => ({
+        type: 'tool_result' as const,
+        tool_use_id: b.id,
+        content: `Searching for: ${b.input?.query}`,
+      }))
+
+    const followUp = await (anthropic.messages.create as any)({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 800,
+      messages: [
+        {
+          role: 'user',
+          content: `Cari dan rangkum informasi terkini tentang: "${topic}". Tulis dalam Bahasa Indonesia, terstruktur, maksimal 500 kata.`,
+        },
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: toolResults },
+      ],
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    })
+
+    for (const block of followUp.content) {
+      if (block.type === 'text') summaryText += block.text
     }
   } else {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      system: systemPrompt,
-      messages: recentMessages,
-    })
-    const textBlock = response.content.find(b => b.type === 'text')
-    responseText = textBlock && 'text' in textBlock ? textBlock.text : ''
-    tokensUsed = response.usage.input_tokens + response.usage.output_tokens
+    for (const block of response.content) {
+      if (block.type === 'text') summaryText += block.text
+    }
   }
 
-  // 4. Cache
-  if (messages.length <= 2 && responseText) {
-    try {
-      await supabase.from('response_cache').upsert({
-        persona_id: persona.id,
-        question_hash: questionHash,
-        question_text: lastMessage.content,
-        answer_text: responseText,
-      })
-    } catch {}
-  }
+  const title = `Info: ${topic}`
 
-  return { text: responseText, fromCache: false, tokensUsed, enrichedWith }
+  // Simpan ke knowledge_items
+  await supabase.from('knowledge_items').insert({
+    persona_id: personaId,
+    tenant_id: tenantId,
+    title,
+    content: summaryText,
+    source_type: 'web_search',
+    is_active: true,
+    last_synced_at: new Date().toISOString(),
+  })
+
+  return { title, content: summaryText }
 }
