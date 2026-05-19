@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase'
 import { notFound } from 'next/navigation'
 import ChatPortal from '@/components/ChatPortal'
 import type { Metadata } from 'next'
