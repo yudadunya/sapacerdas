@@ -1,222 +1,151 @@
-# SapaCerdas Platform
+# SapaCerdas – White-label AI Persona Platform
 
-Platform AI white-label untuk membangun database audiens secara organik.
-Setiap percakapan = kontak baru yang terdata lengkap.
+Platform multi-tenant untuk deploy AI persona berbranding sendiri. Satu codebase, banyak klien, masing-masing punya portal chat, persona, dan database kontak sendiri.
 
-## 🚀 Deploy dalam 5 Langkah
+## Arsitektur
 
-### 1. Clone & Setup
-
-```bash
-git clone https://github.com/username/sapacerdas.git
-cd sapacerdas
-cp .env.example .env.local
-npm install
+```
+yourdomain.com/[tenant-slug]  →  Portal chat publik (white-label per klien)
+yourdomain.com/dashboard       →  Panel admin untuk manage tenant & persona
+yourdomain.com/api/chat        →  AI engine dengan cache & model routing
 ```
 
-### 2. Setup Supabase
+## Stack
 
-1. Buat project baru di [supabase.com](https://supabase.com)
+- **Next.js 14** – frontend + API routes
+- **Supabase** – database (PostgreSQL) + auth + RLS
+- **Anthropic Claude** – AI engine (Haiku untuk efisiensi)
+- **Vercel** – deployment (gratis untuk MVP)
+
+---
+
+## Deploy dalam 4 Langkah
+
+### Langkah 1: Setup Supabase
+
+1. Buat akun di [supabase.com](https://supabase.com) → New Project
 2. Masuk ke **SQL Editor**
-3. Copy-paste isi file `supabase/schema.sql` dan jalankan
-4. Copy credentials dari **Settings → API**:
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+3. Copy isi file `supabase/migrations/001_schema.sql` → paste → Run
+4. Catat:
+   - **Project URL**: Settings → API → Project URL
+   - **Anon Key**: Settings → API → Project API Keys → anon public
+   - **Service Role Key**: Settings → API → Project API Keys → service_role (jangan share!)
 
-### 3. Setup Anthropic API
-
-1. Daftar di [console.anthropic.com](https://console.anthropic.com)
-2. Buat API key baru
-3. Isi `ANTHROPIC_API_KEY` di `.env.local`
-
-### 4. Isi .env.local
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
-ANTHROPIC_API_KEY=sk-ant-...
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-ADMIN_SECRET=buat-password-rahasia-acak-minimal-16-karakter
-```
-
-### 5. Jalankan
+### Langkah 2: Setup GitHub
 
 ```bash
-npm run dev
-# Buka http://localhost:3000
+# Clone atau upload project ini ke GitHub
+git init
+git add .
+git commit -m "Initial SapaCerdas setup"
+git remote add origin https://github.com/username/sapacerdas
+git push -u origin main
 ```
+
+### Langkah 3: Deploy ke Vercel
+
+1. Buka [vercel.com](https://vercel.com) → New Project → Import dari GitHub
+2. Pilih repo ini
+3. Di bagian **Environment Variables**, tambahkan:
+
+```
+NEXT_PUBLIC_SUPABASE_URL        = https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY   = eyJ...
+SUPABASE_SERVICE_ROLE_KEY       = eyJ...
+ANTHROPIC_API_KEY               = sk-ant-...
+NEXT_PUBLIC_APP_URL             = https://nama-project.vercel.app
+```
+
+4. Klik Deploy → tunggu 2-3 menit
+
+### Langkah 4: Buat Akun Pertama
+
+1. Buka `https://yourdomain.vercel.app/login`
+2. Klik **Daftar** → isi email & password → Submit
+3. Cek email → klik link verifikasi
+4. Login → buat tenant pertama → buat persona
 
 ---
 
-## 🌐 Deploy ke Vercel
+## Cara Kerja Multi-Tenant
 
-```bash
-# Install Vercel CLI
-npm i -g vercel
+Setiap klien punya URL sendiri:
 
-# Deploy
-vercel
-
-# Set environment variables
-vercel env add NEXT_PUBLIC_SUPABASE_URL
-vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
-vercel env add SUPABASE_SERVICE_ROLE_KEY
-vercel env add ANTHROPIC_API_KEY
-vercel env add ADMIN_SECRET
-
-# Deploy ulang dengan env baru
-vercel --prod
 ```
+yourdomain.com/klinik-sehat      → Portal Klinik Sehat
+yourdomain.com/dprd-jateng       → Portal DPRD Jawa Tengah  
+yourdomain.com/masjid-al-ikhlas  → Portal Masjid Al-Ikhlas
+```
+
+Data setiap tenant **terisolasi** via Supabase Row Level Security (RLS) — klien A tidak bisa melihat data klien B.
 
 ---
 
-## 📁 Struktur Project
+## Fitur Utama
+
+### ✅ Yang sudah ada
+- Multi-tenant dengan RLS (data isolation)
+- Custom persona (nama, avatar, warna, tone, system prompt)
+- Knowledge base upload
+- Response cache (hemat ~60% biaya AI)
+- Model routing (Haiku untuk pertanyaan sederhana)
+- Contact capture (nama, WA, lokasi) setelah 3 pesan
+- Dashboard admin dengan statistik
+- Login/signup system
+
+### 🔜 Langkah selanjutnya (bisa diminta)
+- Persona editor (form lengkap edit persona)
+- Knowledge base manager (upload, edit, hapus)
+- Google Sheet sync
+- Analytics dashboard lengkap
+- WA broadcast (untuk klien Growth/Pro)
+- Custom domain per tenant
+- Reseller/white-label mode
+
+---
+
+## Struktur File
 
 ```
 src/
 ├── app/
-│   ├── page.tsx              # Landing page marketing
-│   ├── admin/page.tsx        # Admin dashboard
-│   ├── portal/[slug]/        # White-label portal per klien
-│   └── api/
-│       ├── chat/             # Chat + Claude AI
-│       ├── leads/            # Lead capture & retrieval
-│       ├── tenants/          # Tenant management
-│       ├── knowledge/        # Knowledge base + Google Sheet sync
-│       └── analytics/        # Stats per tenant
-├── components/
-│   ├── ChatPortal.tsx        # UI chat utama (white-label)
-│   └── AdminDashboard.tsx    # Dashboard admin
-└── lib/
-    ├── claude.ts             # Claude API + caching logic
-    ├── supabase.ts           # Supabase browser client
-    ├── supabase-server.ts    # Supabase server client
-    └── types.ts              # TypeScript types
+│   ├── [tenant]/page.tsx      ← Portal chat publik
+│   ├── dashboard/page.tsx     ← Admin dashboard
+│   ├── login/page.tsx         ← Auth
+│   ├── api/
+│   │   ├── chat/route.ts      ← AI chat endpoint
+│   │   └── tenants/route.ts   ← Tenant CRUD
+│   └── layout.tsx
+├── lib/
+│   ├── supabase.ts            ← DB clients
+│   └── ai-engine.ts          ← AI + cache logic
+└── types/index.ts             ← TypeScript types
+
+supabase/
+└── migrations/001_schema.sql  ← Complete DB schema
 ```
 
 ---
 
-## 🔑 URL Penting
-
-| URL | Fungsi |
-|-----|--------|
-| `/` | Landing page marketing |
-| `/admin` | Dashboard admin (butuh ADMIN_SECRET) |
-| `/portal/[slug]` | Portal white-label klien |
-| `/portal/demo` | Portal demo (dari seed data) |
-
----
-
-## ➕ Membuat Tenant Baru
-
-### Via Admin Dashboard:
-1. Buka `/admin`
-2. Masukkan `ADMIN_SECRET` kamu
-3. Klik **+ Tambah Tenant**
-4. Isi form: slug, nama, persona, industri, warna, system prompt
-5. Klik **Buat Tenant**
-6. Upload knowledge base di tab **Knowledge**
-
-### Via API:
-```bash
-curl -X POST http://localhost:3000/api/tenants \
-  -H "x-admin-secret: YOUR_ADMIN_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "slug": "nama-klien",
-    "name": "Asisten Nama Klien",
-    "owner_name": "Nama Klien",
-    "owner_title": "Jabatan",
-    "persona_name": "Sari",
-    "primary_color": "#2563eb",
-    "secondary_color": "#1e40af",
-    "welcome_message": "Halo! Ada yang bisa saya bantu?",
-    "system_prompt": "Kamu adalah asisten AI...",
-    "industry": "politik",
-    "capture_lead_after": 3
-  }'
-```
-
----
-
-## 📊 Menambah Knowledge Base
-
-### Via Dashboard:
-1. Pilih tenant → tab **Knowledge**
-2. Isi judul + konten → klik **Tambah**
-
-### Google Sheet Sync (Live Data):
-1. Buat Google Sheet dengan data klien (jadwal, program, harga, dll)
-2. Share sheet: **File → Share → Anyone with link → Viewer**
-3. Copy URL sheet
-4. Di tab Settings tenant, paste URL → klik **Sync**
-5. Data otomatis diupdate saat sync dijalankan ulang
-
-### Via API:
-```bash
-curl -X POST http://localhost:3000/api/knowledge \
-  -H "x-admin-secret: YOUR_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tenantId": "uuid-tenant",
-    "title": "Program Kerja 2025",
-    "content": "Isi konten program kerja...",
-    "source": "Dokumen Resmi"
-  }'
-```
-
----
-
-## 💰 Estimasi Biaya
+## Biaya Operasional (estimasi)
 
 | Komponen | Biaya |
 |----------|-------|
-| Vercel (hosting) | Gratis (Hobby) / $20/bln (Pro) |
-| Supabase | Gratis s/d 50MB / $25/bln (Pro) |
-| Claude Haiku API | ~$0.25 per 1M tokens |
-| **Estimasi per 1.000 pesan** | **~Rp 10.000–50.000** |
+| Vercel (Hobby) | Gratis |
+| Supabase (Free tier) | Gratis sampai 50k rows |
+| Anthropic Haiku | ~Rp 40-100rb / 10.000 pesan (dengan cache) |
 
-Cache ratio 60% → hemat ~60% biaya AI.
-
----
-
-## 🎨 Kustomisasi White-Label
-
-Setiap tenant memiliki:
-- **Nama & avatar** persona AI sendiri
-- **Warna** brand (primary + secondary gradient)
-- **System prompt** custom sesuai industri
-- **Knowledge base** dokumen sendiri
-- **URL** unik: `/portal/[slug]`
-
-Untuk **custom domain** (misal `ai.namaku.com`):
-1. Di Vercel: Add Domain → `ai.namaku.com`
-2. Di DNS: tambah CNAME → `cname.vercel-dns.com`
-3. Di `next.config.js` tambahkan domain ke rewrites
+Untuk 1 klien dengan 3.000 pesan/bulan dan cache 60% → biaya API **~Rp 25-40rb/bulan**.
 
 ---
 
-## 🔒 Keamanan
+## FAQ
 
-- Admin dashboard dilindungi `ADMIN_SECRET` header
-- Supabase RLS aktif untuk semua tabel
-- Service role key hanya dipakai di server-side
-- Data leads private per tenant
+**Q: Bagaimana cara ganti nama/logo platform?**  
+A: Edit `src/app/dashboard/page.tsx` bagian header. Untuk logo, tambahkan di `public/` folder.
 
----
+**Q: Bagaimana klien bisa akses dashboard sendiri?**  
+A: Daftarkan email klien, lalu tambahkan ke `tenant_users` table dengan role `admin`.
 
-## 🛠️ Tech Stack
-
-- **Frontend:** Next.js 14 App Router + TypeScript + Tailwind CSS
-- **Database:** Supabase (PostgreSQL)
-- **AI:** Anthropic Claude (Haiku model — murah & cepat)
-- **Deploy:** Vercel
-- **Cache:** Response cache di Supabase
-
----
-
-## 📞 Dukungan
-
-Untuk pertanyaan teknis, buka issue di GitHub atau hubungi tim SapaCerdas.
+**Q: Bisa custom domain per klien?**  
+A: Di Vercel Pro, bisa tambahkan wildcard domain `*.sapacerdas.id` → pointing ke project ini. Konfigurasi middleware Next.js untuk resolve tenant dari hostname.

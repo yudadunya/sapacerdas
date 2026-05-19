@@ -1,51 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
+import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase'
 
-function checkAdmin(req: NextRequest) {
-  return req.headers.get('x-admin-secret') === process.env.ADMIN_SECRET
+// GET /api/tenants - list tenants for logged-in user
+export async function GET() {
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data, error } = await supabase
+    .from('tenant_users')
+    .select('role, tenant:tenants(*)')
+    .eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
 
-export async function GET(req: NextRequest) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const supabase = createServerClient()
-  const { data: tenants } = await supabase
-    .from('tenants')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  return NextResponse.json({ tenants })
-}
-
+// POST /api/tenants - create new tenant
 export async function POST(req: NextRequest) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const supabase = await createServerSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const supabase = createServerClient()
+  const { name, slug, plan = 'starter' } = body
 
-  const { data: tenant, error } = await supabase
+  if (!name || !slug) {
+    return NextResponse.json({ error: 'Name and slug required' }, { status: 400 })
+  }
+
+  // Validate slug format
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return NextResponse.json({ error: 'Slug must be lowercase letters, numbers, and hyphens only' }, { status: 400 })
+  }
+
+  const service = createServiceClient()
+
+  // Check slug availability
+  const { data: existing } = await service.from('tenants').select('id').eq('slug', slug).single()
+  if (existing) {
+    return NextResponse.json({ error: 'Slug already taken' }, { status: 409 })
+  }
+
+  // Create tenant
+  const { data: tenant, error: tenantError } = await service
     .from('tenants')
-    .insert(body)
+    .insert({ name, slug, plan })
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ tenant })
-}
+  if (tenantError) return NextResponse.json({ error: tenantError.message }, { status: 500 })
 
-export async function PATCH(req: NextRequest) {
-  if (!checkAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Add user as owner
+  await service.from('tenant_users').insert({
+    tenant_id: tenant.id,
+    user_id: user.id,
+    role: 'owner',
+  })
 
-  const { id, ...updates } = await req.json()
-  const supabase = createServerClient()
-
-  const { data: tenant, error } = await supabase
-    .from('tenants')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ tenant })
+  return NextResponse.json(tenant, { status: 201 })
 }

@@ -1,15 +1,16 @@
 import type { Metadata } from 'next'
-import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SapaCerdas — AI Persona Platform',
-  description: 'Platform AI white-label untuk membangun database audiens secara organik',
+  title: 'SapaCerdas – AI Persona Platform',
+  description: 'White-label AI persona untuk semua kebutuhan layanan publik dan bisnis',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id">
-      <body>{children}</body>
+      <body style={{ margin: 0, padding: 0 }}>
+        {children}
+      </body>
     </html>
   )
 }
