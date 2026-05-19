@@ -192,15 +192,14 @@ export async function generateResponse(
   }
 
   // 6. Log usage (fire and forget, jangan block response)
-  supabase
+  void supabase
     .from('usage_logs')
     .insert({
-      tenant_id: persona.id, // akan diupdate di caller jika perlu
+      tenant_id: persona.id,
       persona_id: persona.id,
       event_type: usedWebSearch ? 'chat_with_search' : 'chat',
       tokens_used: tokensUsed,
     })
-    .then(() => {}).catch !== undefined ? Promise.resolve() : Promise.resolve()
 
   return { text: responseText, tokensUsed, usedWebSearch }
 }
