@@ -15,6 +15,14 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false)
   const supabase = createClient()
 
+  async function getAuthHeaders() {
+    const { data: { session } } = await supabase.auth.getSession()
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token || ''}`,
+    }
+  }
+
   useEffect(() => {
     loadTenants()
   }, [])
@@ -28,7 +36,8 @@ export default function Dashboard() {
 
   async function loadTenants() {
     setLoading(true)
-    const res = await fetch('/api/tenants')
+    const headers = await getAuthHeaders()
+    const res = await fetch('/api/tenants', { headers })
     if (res.ok) {
       const data = await res.json()
       setTenants(data)
@@ -60,9 +69,10 @@ export default function Dashboard() {
   async function createTenant() {
     if (!newTenant.name || !newTenant.slug) return
     setCreating(true)
+    const headers = await getAuthHeaders()
     const res = await fetch('/api/tenants', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(newTenant),
     })
     if (res.ok) {

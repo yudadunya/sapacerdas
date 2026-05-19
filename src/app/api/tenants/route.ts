@@ -1,13 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
-// GET /api/tenants - list tenants for logged-in user
-export async function GET() {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
+async function getUserFromRequest(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader) return null
+    const token = authHeader.replace('Bearer ', '')
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data: { user } } = await supabase.auth.getUser(token)
+    return user
+  } catch {
+    return null
+  }
+}
 
+export async function GET(req: NextRequest) {
+  const user = await getUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const supabase = createServiceClient()
   const { data, error } = await supabase
     .from('tenant_users')
     .select('role, tenant:tenants(*)')
@@ -17,11 +32,8 @@ export async function GET() {
   return NextResponse.json(data)
 }
 
-// POST /api/tenants - create new tenant
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
+  const user = await getUserFromRequest(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
@@ -31,20 +43,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Name and slug required' }, { status: 400 })
   }
 
-  // Validate slug format
   if (!/^[a-z0-9-]+$/.test(slug)) {
-    return NextResponse.json({ error: 'Slug must be lowercase letters, numbers, and hyphens only' }, { status: 400 })
+    return NextResponse.json({ error: 'Slug harus huruf kecil, angka, dan tanda hubung' }, { status: 400 })
   }
 
   const service = createServiceClient()
 
-  // Check slug availability
   const { data: existing } = await service.from('tenants').select('id').eq('slug', slug).single()
   if (existing) {
-    return NextResponse.json({ error: 'Slug already taken' }, { status: 409 })
+    return NextResponse.json({ error: 'Slug sudah dipakai' }, { status: 409 })
   }
 
-  // Create tenant
   const { data: tenant, error: tenantError } = await service
     .from('tenants')
     .insert({ name, slug, plan })
@@ -53,7 +62,6 @@ export async function POST(req: NextRequest) {
 
   if (tenantError) return NextResponse.json({ error: tenantError.message }, { status: 500 })
 
-  // Add user as owner
   await service.from('tenant_users').insert({
     tenant_id: tenant.id,
     user_id: user.id,
