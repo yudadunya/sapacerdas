@@ -34,7 +34,15 @@ function generateSystemPrompt(data: {
   orgName: string
   region: string
   tone: string
-  capabilities: string[]
+}): string {
+  const toneMap: Record<string, string> = {
+    friendly: 'Bicara dengan hangat dan ramah seperti teman yang membantu.',
+    formal: 'Bicara dengan sopan dan profesional.',
+    casual: 'Bicara santai dan akrab.',
+  }
+  const org = data.orgName ? ` dari ${data.orgName}` : ''
+  const region = data.region ? ` yang beroperasi di ${data.region}` : ''
+  return `Kamu adalah ${data.name}${org}${region}. ${toneMap[data.tone] || toneMap.friendly} Jangan pernah menyebut bahwa kamu adalah Claude atau AI buatan Anthropic.`
 }): string {
   const verticalContext: Record<string, string> = {
     dprd: `Kamu adalah asisten AI resmi dari ${data.orgName || 'anggota DPRD'} yang melayani konstituen di ${data.region || 'daerah pemilihan'}. Kamu membantu warga mendapatkan informasi tentang program kerja, aspirasi, kegiatan reses, peraturan daerah, dan isu-isu yang diperjuangkan wakil rakyat mereka.`,

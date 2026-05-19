@@ -17,19 +17,14 @@ function hashQuestion(text: string): string {
 
 function buildKnowledgeContext(items: KnowledgeItem[]): string {
   if (!items.length) return ''
-  return '\n\n=== KNOWLEDGE BASE (gunakan sebagai referensi utama) ===\n' +
-    items.map(i => `[${i.title}]\n${i.content}`).join('\n\n---\n') +
-    '\n=== END KNOWLEDGE BASE ==='
+  return items.map(i => `### ${i.title}\n${i.content}`).join('\n\n')
 }
 
-// Semua pertanyaan pakai web search — tidak perlu trigger kata tertentu
-// Kecuali pertanyaan sangat pendek atau salam
-function shouldSearchWeb(text: string): boolean {
-  const greetings = ['halo', 'hai', 'hi', 'selamat', 'permisi', 'hei', 'pagi', 'siang', 'sore', 'malam']
+function isSimpleGreeting(text: string): boolean {
   const lower = text.toLowerCase().trim()
-  if (lower.length < 10) return false
-  if (greetings.some(g => lower === g || lower.startsWith(g + ' '))) return false
-  return true
+  if (lower.length < 8) return true
+  const greetings = ['halo', 'hai', 'hi ', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam', 'permisi', 'hei ']
+  return greetings.some(g => lower.startsWith(g))
 }
 
 export interface ChatMessage {
@@ -63,7 +58,6 @@ export async function generateResponse(
       .eq('question_hash', questionHash)
       .gt('expires_at', new Date().toISOString())
       .single()
-
     if (cached) {
       await supabase.from('response_cache')
         .update({ hit_count: cached.hit_count + 1 })
@@ -73,30 +67,36 @@ export async function generateResponse(
     }
   } catch {}
 
-  // 2. Build system prompt with knowledge base
+  // 2. Build system prompt — minimal, biarkan knowledge yang bicara
   const knowledgeContext = buildKnowledgeContext(knowledgeItems)
-  const systemPrompt = `${persona.system_prompt}
+  
+  const toneMap: Record<string, string> = {
+    friendly: 'Bicara dengan hangat dan ramah seperti teman yang membantu.',
+    formal: 'Bicara dengan sopan dan profesional.',
+    casual: 'Bicara santai dan akrab.',
+  }
+
+  const systemPrompt = knowledgeContext
+    ? `Kamu adalah ${persona.name}${persona.tagline ? `, ${persona.tagline}` : ''}. ${toneMap[persona.tone] || toneMap.friendly}
+
+SEMUA INFORMASI YANG KAMU TAHU:
 ${knowledgeContext}
 
-CARA MENJAWAB:
-- Selalu gunakan informasi dari knowledge base di atas jika relevan
-- Untuk informasi terkini (berita, jadwal, harga, kebijakan), gunakan web search
-- Jawab seperti orang yang benar-benar paham konteks lokal dan situasi terkini
-- Jangan jawab "saya tidak tahu" jika bisa dicari — cari dulu
-- Akhiri setiap jawaban dengan 1 info tambahan yang relevan atau pertanyaan lanjutan yang membuka diskusi
-- Kamu adalah ${persona.name}, bukan Claude atau AI Anthropic`
+Jawab HANYA berdasarkan informasi di atas. Jika tidak ada, cari dari web. Jangan pernah sebut bahwa kamu adalah Claude atau AI buatan Anthropic.`
+    : `Kamu adalah ${persona.name}${persona.tagline ? `, ${persona.tagline}` : ''}. ${toneMap[persona.tone] || toneMap.friendly}
+Jawab pertanyaan dengan mencari informasi terkini yang relevan. Jangan sebut bahwa kamu adalah Claude atau AI buatan Anthropic.`
 
   const recentMessages = messages.slice(-8).map(m => ({
     role: m.role as 'user' | 'assistant',
-    content: m.content
+    content: m.content,
   }))
 
   let responseText = ''
   let tokensUsed = 0
   let enrichedWith: string | undefined
 
-  // 3. Use web search for most questions
-  if (shouldSearchWeb(lastMessage.content)) {
+  // 3. Semua pertanyaan non-salam pakai web search
+  if (!isSimpleGreeting(lastMessage.content)) {
     try {
       const response = await (anthropic.messages.create as any)({
         model: 'claude-haiku-4-5-20251001',
@@ -105,19 +105,12 @@ CARA MENJAWAB:
         messages: recentMessages,
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       })
-
-      // Extract text from response (may have tool_use blocks too)
       const textBlocks = response.content.filter((b: any) => b.type === 'text')
       responseText = textBlocks.map((b: any) => b.text).join('\n').trim()
       tokensUsed = response.usage.input_tokens + response.usage.output_tokens
-      enrichedWith = 'web_search'
-
-      // If web search returned empty text, fallback
-      if (!responseText) {
-        throw new Error('Empty response from web search')
-      }
+      if (responseText) enrichedWith = 'web_search'
+      else throw new Error('empty')
     } catch {
-      // Fallback: answer without web search
       const response = await anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1200,
@@ -129,10 +122,9 @@ CARA MENJAWAB:
       tokensUsed = response.usage.input_tokens + response.usage.output_tokens
     }
   } else {
-    // Simple greeting/short message — no web search needed
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
+      max_tokens: 400,
       system: systemPrompt,
       messages: recentMessages,
     })
@@ -141,7 +133,7 @@ CARA MENJAWAB:
     tokensUsed = response.usage.input_tokens + response.usage.output_tokens
   }
 
-  // 4. Cache simple questions
+  // 4. Cache
   if (messages.length <= 2 && responseText) {
     try {
       await supabase.from('response_cache').upsert({
