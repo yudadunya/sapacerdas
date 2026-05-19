@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { createClient } from '@/lib/supabase-client'
+import { createClient } from '@/lib/supabase'
 import type { Persona, Tenant } from '@/types'
 
 interface Message {

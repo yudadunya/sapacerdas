@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createClient } from '@/lib/supabase-client'
+import { createClient } from '@/lib/supabase'
 
 export default function LandingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)

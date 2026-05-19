@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase'
 import { generateResponse } from '@/lib/ai-engine'
 import type { ChatMessage } from '@/lib/ai-engine'
 
@@ -61,13 +61,11 @@ export async function POST(req: NextRequest) {
     ])
 
     // Update session message count
-    try {
-      await supabase.rpc('increment', { row_id: sessionId })
-    } catch {
-      await supabase.from('chat_sessions')
+    await supabase.rpc('increment', { row_id: sessionId }).catch(() => {
+      supabase.from('chat_sessions')
         .update({ message_count: (persona.message_count || 0) + 1, last_active_at: new Date().toISOString() })
         .eq('id', sessionId)
-    }
+    })
 
     // Log usage
     await supabase.from('usage_logs').insert({

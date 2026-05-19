@@ -1,13 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { createServiceClient } from './supabase-server'
+import { createServiceClient } from './supabase'
 import type { Persona, KnowledgeItem } from '@/types'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-
-const WEB_SEARCH_TOOL = {
-  type: 'web_search_20250305',
-  name: 'web_search',
-} as unknown as Anthropic.Tool
 
 function hashQuestion(text: string): string {
   const normalized = text.toLowerCase().trim().replace(/\s+/g, ' ')
@@ -97,7 +92,7 @@ export async function generateResponse(
           ...recentMessages.slice(0, -1),
           { role: 'user', content: `[Cari informasi terkini tentang]: ${searchQuery}\n\nPertanyaan asli: ${lastMessage.content}` }
         ],
-        tools: [WEB_SEARCH_TOOL],
+        tools: [{ type: 'web_search_20250305' as any, name: 'web_search' }],
       })
       const textBlock = response.content.find(b => b.type === 'text')
       responseText = textBlock && 'text' in textBlock ? textBlock.text : ''
@@ -127,14 +122,12 @@ export async function generateResponse(
   }
 
   if (messages.length <= 2) {
-    try {
-      await supabase.from('response_cache').upsert({
-        persona_id: persona.id,
-        question_hash: questionHash,
-        question_text: lastMessage.content,
-        answer_text: responseText,
-      })
-    } catch {}
+    await supabase.from('response_cache').upsert({
+      persona_id: persona.id,
+      question_hash: questionHash,
+      question_text: lastMessage.content,
+      answer_text: responseText,
+    }).catch(() => {})
   }
 
   return { text: responseText, fromCache: false, tokensUsed, enrichedWith }
@@ -151,21 +144,19 @@ export async function autoEnrichKnowledge(personaId: string, tenantId: string, r
         max_tokens: 800,
         system: `Kamu asisten pengumpul info terkini untuk wilayah ${region}. Jawab ringkas dalam Bahasa Indonesia.`,
         messages: [{ role: 'user', content: `Cari info terbaru: ${topic} di ${region}. Ringkas 3-5 poin penting.` }],
-        tools: [WEB_SEARCH_TOOL],
+        tools: [{ type: 'web_search_20250305' as any, name: 'web_search' }],
       })
       const textBlock = response.content.find(b => b.type === 'text')
       if (textBlock && 'text' in textBlock && textBlock.text) {
-        try {
-          await supabase.from('knowledge_items').upsert({
-            persona_id: personaId,
-            tenant_id: tenantId,
-            title: `[Auto] ${topic} — ${new Date().toLocaleDateString('id-ID')}`,
-            content: textBlock.text,
-            source_type: 'scrape',
-            source_url: `auto:${topic}`,
-            last_synced_at: new Date().toISOString(),
-          }, { onConflict: 'persona_id,source_url' })
-        } catch {}
+        await supabase.from('knowledge_items').upsert({
+          persona_id: personaId,
+          tenant_id: tenantId,
+          title: `[Auto] ${topic} — ${new Date().toLocaleDateString('id-ID')}`,
+          content: textBlock.text,
+          source_type: 'scrape',
+          source_url: `auto:${topic}`,
+          last_synced_at: new Date().toISOString(),
+        }, { onConflict: 'persona_id,source_url' }).catch(() => {})
       }
     } catch (e) {
       console.error('Auto-enrich error:', e)

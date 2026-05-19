@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase-client'
+import { createClient } from '@/lib/supabase'
 
 const VERTICALS = [
   { id: 'dprd', icon: '🏛️', label: 'DPRD / Anggota Dewan', desc: 'Layani konstituen, info dapil, aspirasi warga' },
