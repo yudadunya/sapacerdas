@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { createServiceClient } from './supabase-server'
+import { createServiceClient } from './supabase'
 import { Message, KnowledgeChunk } from './types'
 
 const anthropic = new Anthropic({
