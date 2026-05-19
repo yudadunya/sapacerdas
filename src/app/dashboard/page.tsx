@@ -139,7 +139,7 @@ export default function Dashboard() {
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 24, height: 24, borderRadius: 6, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#3b82f6' }}>
-                  {tenant.name[0]}
+                  {tenant.name?.[0] || '?'}
                 </span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>{tenant.name}</span>
               </span>
@@ -178,7 +178,7 @@ export default function Dashboard() {
                 <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1e293b', margin: 0, letterSpacing: '-0.5px' }}>{selected.name}</h1>
                 <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ fontSize: 13, color: '#64748b' }}>/{selected.slug}</span>
-                  <span style={{ fontSize: 11, background: '#eff6ff', color: '#3b82f6', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{selected.plan.toUpperCase()}</span>
+                  <span style={{ fontSize: 11, background: '#eff6ff', color: '#3b82f6', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{(selected.plan || 'starter').toUpperCase()}</span>
                   <a href={`/${selected.slug}`} target="_blank" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>Lihat Portal ↗</a>
                 </div>
               </div>
