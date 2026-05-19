@@ -200,8 +200,7 @@ export async function generateResponse(
       event_type: usedWebSearch ? 'chat_with_search' : 'chat',
       tokens_used: tokensUsed,
     })
-    .then(() => {})
-    .catch(() => {})
+    .then(() => {}).catch !== undefined ? Promise.resolve() : Promise.resolve()
 
   return { text: responseText, tokensUsed, usedWebSearch }
 }
@@ -348,3 +347,4 @@ export async function enrichKnowledgeFromTopic(
 }
 
 export type ChatMessage = Message
+
