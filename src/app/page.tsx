@@ -126,7 +126,7 @@ export default function LandingPage() {
         </p>
         <div className="fade-in" style={{ animationDelay: '0.5s', marginTop: 40, display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
           <a href="/login" className="cta-btn">Coba Gratis Sekarang →</a>
-          <a href="/portal/demo" className="cta-btn-ghost">Lihat Demo</a>
+          <a href="/demo" className="cta-btn-ghost">Lihat Demo</a>
         </div>
         <div className="fade-in" style={{ animationDelay: '0.65s', marginTop: 64, display: 'flex', gap: 40, justifyContent: 'center', flexWrap: 'wrap' }}>
           {[['10 menit', 'setup pertama'], ['60%', 'hemat biaya AI'], ['∞', 'klien & persona']].map(([num, label]) => (
