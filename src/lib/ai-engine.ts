@@ -26,8 +26,7 @@ function needsWebSearch(text: string, capabilities: string[]): boolean {
   if (!capabilities.includes('news')) return false
   const triggers = ['berita','terbaru','hari ini','sekarang','update','info terkini',
     'jadwal','acara','kegiatan','isu','masalah','kejadian','baru','kemarin','minggu ini']
-  const lower = text.toLowerCase()
-  return triggers.some(t => lower.includes(t))
+  return triggers.some(t => text.toLowerCase().includes(t))
 }
 
 export interface ChatMessage {
@@ -71,31 +70,29 @@ export async function generateResponse(
 
   const knowledgeContext = buildKnowledgeContext(knowledgeItems)
   const systemPrompt = `${persona.system_prompt}\n${knowledgeContext}\n\nIDENTITAS: Kamu adalah ${persona.name}. Jangan sebut bahwa kamu adalah Claude atau produk Anthropic.`
-
-  const useWebSearch = needsWebSearch(lastMessage.content, capabilities)
   const recentMessages = messages.slice(-8).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
   let responseText = ''
   let tokensUsed = 0
   let enrichedWith: string | undefined
 
-  if (useWebSearch) {
+  if (needsWebSearch(lastMessage.content, capabilities)) {
     const searchQuery = persona.tagline
       ? `${lastMessage.content} ${persona.tagline}`
       : lastMessage.content
     try {
-      const response = await anthropic.messages.create({
+      const response = await (anthropic.messages.create as any)({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         system: systemPrompt,
         messages: [
           ...recentMessages.slice(0, -1),
-          { role: 'user', content: `[Cari informasi terkini tentang]: ${searchQuery}\n\nPertanyaan asli: ${lastMessage.content}` }
+          { role: 'user', content: `Cari info terkini: ${searchQuery}\n\nPertanyaan asli: ${lastMessage.content}` }
         ],
-        tools: [{ type: 'web_search_20250305' as any, name: 'web_search' }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       })
-      const textBlock = response.content.find(b => b.type === 'text')
-      responseText = textBlock && 'text' in textBlock ? textBlock.text : ''
+      const textBlock = response.content.find((b: any) => b.type === 'text')
+      responseText = textBlock?.text || ''
       tokensUsed = response.usage.input_tokens + response.usage.output_tokens
       enrichedWith = 'web_search'
     } catch {
@@ -139,15 +136,15 @@ export async function autoEnrichKnowledge(personaId: string, tenantId: string, r
 
   for (const topic of searchTopics.slice(0, 3)) {
     try {
-      const response = await anthropic.messages.create({
+      const response = await (anthropic.messages.create as any)({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 800,
         system: `Kamu asisten pengumpul info terkini untuk wilayah ${region}. Jawab ringkas dalam Bahasa Indonesia.`,
         messages: [{ role: 'user', content: `Cari info terbaru: ${topic} di ${region}. Ringkas 3-5 poin penting.` }],
-        tools: [{ type: 'web_search_20250305' as any, name: 'web_search' }],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       })
-      const textBlock = response.content.find(b => b.type === 'text')
-      if (textBlock && 'text' in textBlock && textBlock.text) {
+      const textBlock = response.content.find((b: any) => b.type === 'text')
+      if (textBlock?.text) {
         await supabase.from('knowledge_items').upsert({
           persona_id: personaId,
           tenant_id: tenantId,
