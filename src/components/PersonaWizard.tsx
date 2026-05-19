@@ -134,7 +134,7 @@ export default function PersonaWizard({ tenantId, onCreated }: Props) {
       custom: `Halo! Saya ${data.name} 👋 Ada yang bisa saya bantu?`,
     }
 
-    const { error: personaError } = const { error: personaError } = await supabase.from('personas').insert({
+    const { error: personaError } = await supabase.from('personas').insert({
       tenant_id: tenantId,
       name: data.name,
       tagline: data.orgName ? `Asisten Digital ${data.orgName}` : 'Asisten AI',
