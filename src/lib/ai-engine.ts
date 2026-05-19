@@ -119,12 +119,14 @@ export async function generateResponse(
   }
 
   if (messages.length <= 2) {
-    await supabase.from('response_cache').upsert({
-      persona_id: persona.id,
-      question_hash: questionHash,
-      question_text: lastMessage.content,
-      answer_text: responseText,
-    }).catch(() => {})
+    try {
+      await supabase.from('response_cache').upsert({
+        persona_id: persona.id,
+        question_hash: questionHash,
+        question_text: lastMessage.content,
+        answer_text: responseText,
+      })
+    } catch {}
   }
 
   return { text: responseText, fromCache: false, tokensUsed, enrichedWith }
@@ -153,7 +155,7 @@ export async function autoEnrichKnowledge(personaId: string, tenantId: string, r
           source_type: 'scrape',
           source_url: `auto:${topic}`,
           last_synced_at: new Date().toISOString(),
-        }, { onConflict: 'persona_id,source_url' }).catch(() => {})
+        }, { onConflict: 'persona_id,source_url' })
       }
     } catch (e) {
       console.error('Auto-enrich error:', e)
