@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { name, slug, plan = 'starter' } = body
+  const { name, slug } = body
 
   if (!name || !slug) {
     return NextResponse.json({ error: 'Name and slug required' }, { status: 400 })
@@ -49,24 +49,38 @@ export async function POST(req: NextRequest) {
 
   const service = createServiceClient()
 
-  const { data: existing } = await service.from('tenants').select('id').eq('slug', slug).single()
+  // Cek slug duplikat
+  const { data: existing } = await service
+    .from('tenants')
+    .select('id')
+    .eq('slug', slug)
+    .maybeSingle()
+
   if (existing) {
     return NextResponse.json({ error: 'Slug sudah dipakai' }, { status: 409 })
   }
 
+  // Insert hanya kolom yang ada di tabel
   const { data: tenant, error: tenantError } = await service
     .from('tenants')
-    .insert({ name, slug, plan })
+    .insert({ name, slug })
     .select()
     .single()
 
-  if (tenantError) return NextResponse.json({ error: tenantError.message }, { status: 500 })
+  if (tenantError) {
+    return NextResponse.json({ error: tenantError.message }, { status: 500 })
+  }
 
-  await service.from('tenant_users').insert({
+  // Tambah user sebagai owner
+  const { error: tuError } = await service.from('tenant_users').insert({
     tenant_id: tenant.id,
     user_id: user.id,
     role: 'owner',
   })
+
+  if (tuError) {
+    console.error('tenant_users insert error:', tuError.message)
+  }
 
   return NextResponse.json(tenant, { status: 201 })
 }
