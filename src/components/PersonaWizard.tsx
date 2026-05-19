@@ -134,7 +134,7 @@ export default function PersonaWizard({ tenantId, onCreated }: Props) {
       custom: `Halo! Saya ${data.name} 👋 Ada yang bisa saya bantu?`,
     }
 
-    await supabase.from('personas').insert({
+    const { error: personaError } = const { error: personaError } = await supabase.from('personas').insert({
       tenant_id: tenantId,
       name: data.name,
       tagline: data.orgName ? `Asisten Digital ${data.orgName}` : 'Asisten AI',
@@ -146,6 +146,10 @@ export default function PersonaWizard({ tenantId, onCreated }: Props) {
     })
 
     setSaving(false)
+    if (personaError) {
+      alert('Gagal menyimpan persona: ' + personaError.message)
+      return
+    }
     onCreated()
   }
 
@@ -286,3 +290,4 @@ export default function PersonaWizard({ tenantId, onCreated }: Props) {
     </div>
   )
 }
+
