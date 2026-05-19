@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase-server'
 
 function checkAdmin(req: NextRequest) {
   return req.headers.get('x-admin-secret') === process.env.ADMIN_SECRET
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const tenantSlug = searchParams.get('tenant')
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
 
   const { data: tenant } = await supabase
     .from('tenants')

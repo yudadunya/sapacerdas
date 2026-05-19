@@ -1,4 +1,4 @@
-import { createServerClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase-server'
 import { notFound } from 'next/navigation'
 import ChatPortal from '@/components/ChatPortal'
 import type { Metadata } from 'next'
@@ -8,7 +8,7 @@ interface Props {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
   const { data: tenant } = await supabase
     .from('tenants')
     .select('name, owner_name, owner_title')
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PortalPage({ params }: Props) {
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
   const { data: tenant } = await supabase
     .from('tenants')
     .select('*')

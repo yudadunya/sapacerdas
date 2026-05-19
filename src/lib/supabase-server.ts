@@ -2,7 +2,6 @@ import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-// Server component client — pakai di Server Components & API routes
 export async function createServerSupabaseClient() {
   const cookieStore = cookies()
   return createSSRServerClient(
@@ -13,10 +12,10 @@ export async function createServerSupabaseClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options as any)
             )
           } catch {}
         },
@@ -25,7 +24,6 @@ export async function createServerSupabaseClient() {
   )
 }
 
-// Service role client — full access, hanya untuk API routes
 export function createServiceClient() {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

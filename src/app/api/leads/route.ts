@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase-server'
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const supabase = createServerClient()
+    const supabase = createServiceClient()
 
     const { data: tenant } = await supabase
       .from('tenants')
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createServerClient()
+    const supabase = createServiceClient()
     const { data: tenant } = await supabase
       .from('tenants')
       .select('id')

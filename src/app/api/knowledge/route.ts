@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase-server'
 
 function checkAdmin(req: NextRequest) {
   return req.headers.get('x-admin-secret') === process.env.ADMIN_SECRET
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!checkAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tenantId, title, content, source } = await req.json()
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
 
   const chunks = chunkText(content)
   const rows = chunks.map((chunk, i) => ({
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const tenantId = searchParams.get('tenantId')
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
 
   const { data } = await supabase
     .from('knowledge_chunks')
@@ -67,7 +67,7 @@ export async function DELETE(req: NextRequest) {
   if (!checkAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await req.json()
-  const supabase = createServerClient()
+  const supabase = createServiceClient()
 
   await supabase.from('knowledge_chunks').delete().eq('id', id)
   return NextResponse.json({ success: true })
@@ -92,7 +92,7 @@ export async function PUT(req: NextRequest) {
     const lines = csv.split('\n').filter(l => l.trim())
     const content = lines.map(line => line.split(',').join(' | ')).join('\n')
 
-    const supabase = createServerClient()
+    const supabase = createServiceClient()
 
     // Hapus chunk lama dari google sheets
     await supabase
