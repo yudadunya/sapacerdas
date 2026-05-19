@@ -21,7 +21,7 @@ const supabase = createClient(
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Message {
+export interface Message {
   role: 'user' | 'assistant'
   content: string
 }
@@ -346,3 +346,5 @@ export async function enrichKnowledgeFromTopic(
 
   return { title, content: summaryText }
 }
+
+export type ChatMessage = Message
