@@ -25,19 +25,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Persona not found' }, { status: 404 })
     }
 
-    // Load knowledge base
-    const { data: knowledgeItems } = await supabase
-      .from('knowledge_items')
-      .select('*')
-      .eq('persona_id', personaId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-
-    // Generate response
+    // Generate response — knowledge diambil otomatis di dalam engine
     const result = await generateResponse(
       persona,
       messages as ChatMessage[],
-      knowledgeItems || [],
       sessionId
     )
 
@@ -55,7 +46,7 @@ export async function POST(req: NextRequest) {
         session_id: sessionId,
         role: 'assistant',
         content: result.text,
-        from_cache: result.fromCache,
+        from_cache: false,
         tokens_used: result.tokensUsed,
       },
     ])
@@ -70,18 +61,16 @@ export async function POST(req: NextRequest) {
     await supabase.from('usage_logs').insert({
       tenant_id: persona.tenant_id,
       persona_id: personaId,
-      event_type: result.fromCache ? 'cache_hit' : 'message_sent',
+      event_type: result.usedWebSearch ? 'chat_with_search' : 'chat',
       tokens_used: result.tokensUsed,
     })
 
     return NextResponse.json({
       text: result.text,
-      fromCache: result.fromCache,
-      enrichedWith: result.enrichedWith,
+      usedWebSearch: result.usedWebSearch,
     })
   } catch (error) {
     console.error('Chat API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
