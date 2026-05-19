@@ -60,10 +60,11 @@ export async function POST(req: NextRequest) {
       },
     ])
 
-    // Update session message count
-    await supabase.from('chat_sessions').update({ message_count: 1, last_active_at: new Date().toISOString() }).eq('id', sessionId)
-        .eq('id', sessionId)
-    })
+    // Update session
+    await supabase
+      .from('chat_sessions')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('id', sessionId)
 
     // Log usage
     await supabase.from('usage_logs').insert({
@@ -76,10 +77,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       text: result.text,
       fromCache: result.fromCache,
+      enrichedWith: result.enrichedWith,
     })
   } catch (error) {
     console.error('Chat API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
