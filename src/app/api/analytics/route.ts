@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase-server'
+import { createServiceClient } from '@/lib/supabase'
 
 function checkAdmin(req: NextRequest) {
   return req.headers.get('x-admin-secret') === process.env.ADMIN_SECRET
