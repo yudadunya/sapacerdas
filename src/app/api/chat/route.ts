@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase'
+import { createServiceClient } from '@/lib/supabase-server'
 import { generateResponse } from '@/lib/ai-engine'
 import type { ChatMessage } from '@/lib/ai-engine'
 

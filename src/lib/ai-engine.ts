@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { createServiceClient } from './supabase'
+import { createServiceClient } from './supabase-server'
 import type { Persona, KnowledgeItem } from '@/types'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
