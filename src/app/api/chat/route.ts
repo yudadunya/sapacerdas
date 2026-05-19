@@ -61,9 +61,7 @@ export async function POST(req: NextRequest) {
     ])
 
     // Update session message count
-    await supabase.rpc('increment', { row_id: sessionId }).catch(() => {
-      supabase.from('chat_sessions')
-        .update({ message_count: (persona.message_count || 0) + 1, last_active_at: new Date().toISOString() })
+    await supabase.from('chat_sessions').update({ message_count: 1, last_active_at: new Date().toISOString() }).eq('id', sessionId)
         .eq('id', sessionId)
     })
 
@@ -84,3 +82,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
