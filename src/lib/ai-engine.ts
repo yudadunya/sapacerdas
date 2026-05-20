@@ -98,10 +98,27 @@ export async function generateResponse(
   )
 
   if (hasNoAssistantHistory && isExactGreeting) {
-    return {
-      text: persona.welcome_message || `Halo! Saya ${persona.name}. Ada yang bisa saya bantu?`,
-      tokensUsed: 0,
-      usedWebSearch: false,
+    // Biarkan AI menyambut secara natural berdasarkan system prompt
+    // Jangan pakai welcome_message yang kaku
+    try {
+      const knowledgeItems = await getKnowledge(persona.id)
+      const knowledgeContext = buildKnowledgeContext(knowledgeItems)
+      const systemPrompt = buildSystemPrompt(persona, knowledgeContext)
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 200,
+        system: systemPrompt + '\n\nSeseorang baru saja menyapa kamu. Sambut dengan hangat, perkenalkan diri secara natural dan singkat, lalu tanya ada yang bisa dibantu. Maksimal 2-3 kalimat.',
+        messages: [{ role: 'user', content: question }],
+      })
+      const textBlock = response.content.find(b => b.type === 'text')
+      const text = textBlock && 'text' in textBlock ? textBlock.text : persona.welcome_message
+      return { text, tokensUsed: response.usage.input_tokens + response.usage.output_tokens, usedWebSearch: false }
+    } catch {
+      return {
+        text: persona.welcome_message || `Halo! Saya ${persona.name}. Ada yang bisa saya bantu?`,
+        tokensUsed: 0,
+        usedWebSearch: false,
+      }
     }
   }
 
