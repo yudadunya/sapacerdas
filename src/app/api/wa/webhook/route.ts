@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     // Simpan pesan ke DB
     await supabase.from('messages').insert([
       { session_id: session.id, role: 'user', content: message, from_cache: false, tokens_used: 0 },
-      { session_id: session.id, role: 'assistant', content: result.text, from_cache: result.fromCache || false, tokens_used: result.tokensUsed },
+      { session_id: session.id, role: 'assistant', content: result.text, from_cache: false, tokens_used: result.tokensUsed },
     ])
 
     // Update session
