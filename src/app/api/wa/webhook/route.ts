@@ -3,18 +3,18 @@ import { createServiceClient } from '@/lib/supabase'
 import { generateResponse } from '@/lib/ai-engine'
 
 async function sendWAMessage(token: string, target: string, message: string) {
+  const params = new URLSearchParams()
+  params.append('target', target)
+  params.append('message', message)
+  params.append('typing', 'true')
+  params.append('delay', '2')
+
   const res = await fetch('https://api.fonnte.com/send', {
     method: 'POST',
     headers: {
       'Authorization': token,
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      target,
-      message,
-      typing: true,
-      delay: 2,
-    }),
+    body: params,
   })
   return res.json()
 }
