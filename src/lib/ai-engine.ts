@@ -102,13 +102,14 @@ export async function generateResponse(
   messages: Message[],
   sessionId: string
 ): Promise<AIResponse> {
-  // 0. Jika pesan pertama dan salam — langsung balas dengan welcome_message
-  const isFirstMessage = messages.length === 1
-  const greetings = ['hi', 'halo', 'hai', 'hello', 'hei', 'pagi', 'siang', 'sore', 'malam', 'permisi', 'assalamualaikum', 'ass', 'waalaikumsalam']
+  // 0. Jika HANYA satu pesan dan isinya salam pendek — balas dengan welcome_message
+  const greetings = ['hi', 'halo', 'hai', 'hello', 'hei', 'pagi', 'siang', 'sore', 'malam', 'permisi', 'assalamualaikum', 'waalaikumsalam']
   const msgLower = messages[messages.length - 1].content.toLowerCase().trim()
-  const isGreeting = isFirstMessage && (msgLower.length < 20 || greetings.some(g => msgLower === g || msgLower.startsWith(g + ' ') || msgLower.startsWith(g + '!')))
+  const prevMessages = messages.slice(0, -1)
+  const hasNoHistory = prevMessages.filter(m => m.role === 'assistant').length === 0
+  const isExactGreeting = greetings.some(g => msgLower === g || msgLower === g + '!' || msgLower === g + ' wr wb')
 
-  if (isGreeting) {
+  if (hasNoHistory && isExactGreeting) {
     const welcomeText = persona.welcome_message || `Halo! Saya ${persona.name}. Ada yang bisa saya bantu?`
     void supabase.from('usage_logs').insert({ tenant_id: persona.id, persona_id: persona.id, event_type: 'chat', tokens_used: 0 })
     return { text: welcomeText, tokensUsed: 0, usedWebSearch: false }
