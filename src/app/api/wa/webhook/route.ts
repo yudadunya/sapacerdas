@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
     let session = sessions?.[0] || null
 
     if (!session) {
+      // WA sudah punya nama & nomor — langsung capture otomatis
+      const contactName = body.pushname || body.name || sender
       const { data: newSession } = await supabase
         .from('chat_sessions')
         .insert({
@@ -94,13 +96,24 @@ export async function POST(req: NextRequest) {
           tenant_id: persona.tenant_id,
           visitor_id: sender,
           contact_phone: sender,
-          contact_name: body.name || body.pushname || sender,
+          contact_name: contactName,
           channel: 'whatsapp',
+          captured_at: new Date().toISOString(), // auto capture karena WA sudah ada datanya
         })
         .select()
         .single()
       session = newSession
-      console.log('New session created:', session?.id)
+      console.log('New session created:', session?.id, 'contact:', contactName)
+
+      // Log contact captured
+      if (newSession) {
+        await supabase.from('usage_logs').insert({
+          tenant_id: persona.tenant_id,
+          persona_id: persona.id,
+          event_type: 'contact_captured',
+          tokens_used: 0,
+        })
+      }
     }
 
     if (!session) {
