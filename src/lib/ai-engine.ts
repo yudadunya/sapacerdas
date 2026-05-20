@@ -102,6 +102,18 @@ export async function generateResponse(
   messages: Message[],
   sessionId: string
 ): Promise<AIResponse> {
+  // 0. Jika pesan pertama dan salam — langsung balas dengan welcome_message
+  const isFirstMessage = messages.length === 1
+  const greetings = ['hi', 'halo', 'hai', 'hello', 'hei', 'pagi', 'siang', 'sore', 'malam', 'permisi', 'assalamualaikum', 'ass', 'waalaikumsalam']
+  const msgLower = messages[messages.length - 1].content.toLowerCase().trim()
+  const isGreeting = isFirstMessage && (msgLower.length < 20 || greetings.some(g => msgLower === g || msgLower.startsWith(g + ' ') || msgLower.startsWith(g + '!')))
+
+  if (isGreeting) {
+    const welcomeText = persona.welcome_message || `Halo! Saya ${persona.name}. Ada yang bisa saya bantu?`
+    void supabase.from('usage_logs').insert({ tenant_id: persona.id, persona_id: persona.id, event_type: 'chat', tokens_used: 0 })
+    return { text: welcomeText, tokensUsed: 0, usedWebSearch: false }
+  }
+
   // 1. Ambil knowledge base
   const knowledgeItems = await getKnowledge(persona.id)
   const knowledgeContext = buildKnowledgeContext(knowledgeItems)
