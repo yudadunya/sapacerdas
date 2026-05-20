@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import WAIntegration from '@/components/WAIntegration'
 
 interface Persona {
   id: string; tenant_id: string; name: string; tagline?: string
@@ -18,7 +19,7 @@ interface Props { params: { id: string } }
 export default function EditPersonaPage({ params }: Props) {
   const [persona, setPersona] = useState<Persona | null>(null)
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([])
-  const [tab, setTab] = useState<'persona' | 'knowledge'>('persona')
+  const [tab, setTab] = useState<'persona' | 'knowledge' | 'whatsapp'>('persona')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
@@ -143,7 +144,7 @@ export default function EditPersonaPage({ params }: Props) {
 
       {/* Tabs */}
       <div style={{ background:'#fff', borderBottom:'1px solid #e2e8f0', padding:'0 24px', display:'flex' }}>
-        {[{id:'persona', label:'⚙️ Pengaturan'},{id:'knowledge', label:`📚 Knowledge Base (${knowledge.length})`}].map(t => (
+        {[{id:'persona', label:'⚙️ Pengaturan'},{id:'knowledge', label:`📚 Knowledge Base (${knowledge.length})`},{id:'whatsapp', label:'📱 WhatsApp'}].map(t => (
           <button key={t.id} onClick={() => setTab(t.id as any)}
             style={{ padding:'12px 20px', border:'none', borderBottom:tab===t.id ? '2px solid #2563eb' : '2px solid transparent', background:'none', cursor:'pointer', fontSize:14, fontWeight:tab===t.id ? 600 : 400, color:tab===t.id ? '#2563eb' : '#64748b' }}>
             {t.label}
@@ -333,6 +334,10 @@ export default function EditPersonaPage({ params }: Props) {
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'whatsapp' && persona && (
+          <WAIntegration personaId={persona.id} tenantId={persona.tenant_id} />
         )}
       </div>
     </div>
